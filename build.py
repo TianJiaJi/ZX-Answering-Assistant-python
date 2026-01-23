@@ -124,7 +124,7 @@ def update_version_info():
         # 写回文件
         with open(version_file, 'w', encoding='utf-8') as f:
             f.write(content)
-
+        
         print(f"[OK] 版本信息已更新:")
         print(f"   构建日期: {build_date}")
         print(f"   构建时间: {build_time}")
@@ -144,8 +144,8 @@ def build_project(mode="onedir", use_upx=False):
     """
     # 导入版本信息
     import version
-    print(f"\n[INFO] 打包版本: {version.get_version_string()}")
-
+    print(f"[INFO] 打包版本: {version.get_version_string()}")
+    
     # 更新构建信息
     update_version_info()
 
@@ -153,57 +153,27 @@ def build_project(mode="onedir", use_upx=False):
     import importlib
     importlib.reload(version)
     print(f"[INFO] 完整版本: {version.get_full_version_string()}")
-
-    # 获取平台信息
-    platform_info = get_platform_info()
-    print(f"[INFO] 平台: {platform_info['platform']} {platform_info['architecture']}")
-
-    # 生成分发名称
-    dist_name = get_dist_name(mode, version.VERSION, platform_info)
-    print(f"[INFO] 分发名称: {dist_name}")
-
+    
     # 检查是否安装了PyInstaller
     try:
         import PyInstaller
         print("[OK] PyInstaller 已安装")
     except ImportError:
-        print("[INFO] PyInstaller 未安装，正在安装...")
+        print("[ERROR] PyInstaller 未安装，正在安装...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
         print("[OK] PyInstaller 安装完成")
-
+    
     # 确保所有依赖已安装
-    print("\n[INFO] 正在安装项目依赖...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "-q"])
-
-    # 确保Playwright浏览器已安装
-    print("\n[INFO] 正在安装Playwright浏览器...")
-    subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
-
+    print("\n正在安装项目依赖...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+    
     # 复制Playwright浏览器到项目目录
-    print("\n[INFO] 正在准备Playwright浏览器用于打包...")
-    project_root = Path(__file__).parent
-    browser_result = ensure_browser_ready(project_root=project_root)
-
-    if browser_result["ready"]:
-        if browser_result["copied"]:
-            print(f"[OK] 浏览器已复制 ({browser_result['size_mb']:.2f} MB)")
-        else:
-            print(f"[OK] 浏览器已准备就绪 ({browser_result['size_mb']:.2f} MB)")
+    print("\n正在复制Playwright浏览器...")
+    if not Path("playwright_browsers").exists():
+        subprocess.check_call([sys.executable, "copy_browser.py"])
     else:
-        print("[WARN] 浏览器准备失败，但继续打包...")
-
-    # 准备Flet可执行文件
-    print("\n[INFO] 正在准备Flet可执行文件用于打包...")
-    flet_result = ensure_flet_ready(project_root=project_root)
-
-    if flet_result["ready"]:
-        if flet_result["copied"]:
-            print(f"[OK] Flet已下载 ({flet_result['size_mb']:.2f} MB)")
-        else:
-            print(f"[OK] Flet已准备就绪 ({flet_result['size_mb']:.2f} MB)")
-    else:
-        print("[WARN] Flet准备失败，打包后将从GitHub下载（首次启动较慢）")
-
+        print("[OK] 浏览器目录已存在，跳过复制")
+    
     # 获取Playwright安装路径
     try:
         from playwright.sync_api import sync_playwright
@@ -213,7 +183,7 @@ def build_project(mode="onedir", use_upx=False):
             print(f"[OK] Playwright浏览器路径: {browser_path}")
     except Exception as e:
         print(f"[WARN] 获取Playwright路径失败: {e}")
-
+    
     # 打包项目
     mode_name = "单文件" if mode == "onefile" else "目录模式"
     print(f"\n[INFO] 正在打包项目（{mode_name}）...")
@@ -255,10 +225,17 @@ def build_project(mode="onedir", use_upx=False):
         "--hidden-import", "playwright._impl._element_handle",
         "--hidden-import", "playwright._impl._js_handle",
         "--hidden-import", "greenlet",
+        "--hidden-import", "loguru",
+        "--hidden-import", "yaml",
+        "--hidden-import", "openpyxl",
+        "--hidden-import", "aiohttp",
+        "--hidden-import", "tqdm",
         "--hidden-import", "keyboard",
         "--hidden-import", "requests",
         "--hidden-import", "flet",
         "--collect-all", "playwright",
+        "--collect-all", "pyyaml",
+        "--collect-all", "openpyxl",
         "--exclude-module", "matplotlib",
         "--exclude-module", "numpy",
         "--exclude-module", "pandas",
@@ -267,10 +244,8 @@ def build_project(mode="onedir", use_upx=False):
         "--exclude-module", "aiohttp",
         "--exclude-module", "tqdm",
         "--exclude-module", "scipy",
-        "--exclude-module", "yaml",
-        "--exclude-module", "dotenv",
-        "--exclude-module", "pyyaml",
-        "--name", dist_name,
+        "--exclude-module", "pandas",
+        "--name", "ZX-Answering-Assistant",
         "main.py"
     ]
 
@@ -286,43 +261,27 @@ def build_project(mode="onedir", use_upx=False):
     print("=" * 60)
 
     if mode == "onefile":
-        # 单文件模式：生成 .exe 文件（Windows）或无扩展名（Linux/Mac）
-        if platform_info["platform"] == "windows":
-            exe_filename = f"{dist_name}.exe"
-        else:
-            exe_filename = dist_name
-
-        exe_path = Path.cwd() / 'dist' / exe_filename
-        print(f"[PATH] 可执行文件位于: {exe_path}")
-        print(f"[INFO] 版本: {version.get_full_version_string()}")
-        print(f"[INFO] 平台: {platform_info['platform']} {platform_info['architecture']}")
+        exe_path = Path.cwd() / 'dist' / 'ZX-Answering-Assistant.exe'
+        print(f"[DIR] 可执行文件位于: {exe_path}")
+        print(f"[FILE] 版本: {version.get_full_version_string()}")
         print("\n" + "=" * 60)
-        print("[HELP] 使用说明:")
+        print("[LIST] 使用说明:")
         print("=" * 60)
-        print("单文件模式：所有文件打包到一个可执行文件中")
+        print("[STAR] 零依赖运行：已包含Playwright浏览器，无需下载")
         print("1. 首次运行可执行文件时，会自动解压到临时目录")
         print("2. Playwright浏览器已内置，无需下载")
         print("3. Flet可执行文件已内置，首次启动无需从GitHub下载")
         print("4. 建议将可执行文件放在单独的目录中运行")
         print("5. 首次启动可能需要1-2分钟（解压文件）")
     else:
-        # 目录模式：生成文件夹
-        dist_dir = Path.cwd() / 'dist' / dist_name
-        if platform_info["platform"] == "windows":
-            exe_filename = f"{dist_name}.exe"
-        else:
-            exe_filename = dist_name
-
-        exe_path = dist_dir / exe_filename
-        print(f"[PATH] 可执行文件位于: {exe_path}")
-        print(f"[PATH] 分发目录位于: {dist_dir}")
-        print(f"[INFO] 版本: {version.get_full_version_string()}")
-        print(f"[INFO] 平台: {platform_info['platform']} {platform_info['architecture']}")
+        exe_path = Path.cwd() / 'dist' / 'ZX-Answering-Assistant' / 'ZX-Answering-Assistant.exe'
+        print(f"[DIR] 可执行文件位于: {exe_path}")
+        print(f"[FILE] 版本: {version.get_full_version_string()}")
         print("\n" + "=" * 60)
-        print("[HELP] 使用说明:")
+        print("[LIST] 使用说明:")
         print("=" * 60)
-        print("目录模式：启动速度快10-20倍（推荐）")
-        print(f"1. 运行 dist/{dist_name}/{exe_filename}")
+        print("[STAR] 优化版：使用目录模式，启动速度快10-20倍")
+        print("1. 运行 dist/ZX-Answering-Assistant/ZX-Answering-Assistant.exe")
         print("2. Playwright浏览器已内置，无需下载")
         print("3. Flet可执行文件已内置，首次启动无需从GitHub下载")
         print(f"4. 可以将整个 {dist_name} 文件夹分发给用户")
@@ -409,116 +368,10 @@ def main():
     print("=" * 60)
     print("ZX Answering Assistant - 项目打包工具")
     print("=" * 60)
-
-    project_root = Path(__file__).parent
-
-    # 如果只是复制浏览器
-    if args.copy_browser:
-        print("[TASK] 复制Playwright浏览器")
-        browser_result = ensure_browser_ready(
-            project_root=project_root,
-            force_copy=args.force_copy
-        )
-
-        if browser_result["ready"]:
-            status = "已重新复制" if args.force_copy or browser_result["copied"] else "已存在"
-            print(f"\n[OK] 浏览器{status} ({browser_result['size_mb']:.2f} MB)")
-            return 0
-        else:
-            print("\n[ERROR] 浏览器准备失败")
-            return 1
-
-    # 如果只是下载Flet
-    if args.copy_flet:
-        print("[TASK] 下载Flet可执行文件")
-        flet_result = ensure_flet_ready(
-            project_root=project_root,
-            force_copy=args.force_copy
-        )
-
-        if flet_result["ready"]:
-            status = "已重新下载" if args.force_copy or flet_result["copied"] else "已存在"
-            print(f"\n[OK] Flet{status} ({flet_result['size_mb']:.2f} MB)")
-            return 0
-        else:
-            print("\n[ERROR] Flet准备失败")
-            return 1
-
-    # 如果复制所有依赖
-    if args.copy_all:
-        print("[TASK] 复制所有依赖（Playwright浏览器 + Flet）")
-
-        # 复制Playwright浏览器
-        print("\n[1/2] 准备Playwright浏览器...")
-        browser_result = ensure_browser_ready(
-            project_root=project_root,
-            force_copy=args.force_copy
-        )
-
-        if browser_result["ready"]:
-            status = "已重新复制" if args.force_copy or browser_result["copied"] else "已存在"
-            print(f"   [OK] 浏览器{status} ({browser_result['size_mb']:.2f} MB)")
-        else:
-            print("   [ERROR] 浏览器准备失败")
-            return 1
-
-        # 下载Flet
-        print("\n[2/2] 准备Flet可执行文件...")
-        flet_result = ensure_flet_ready(
-            project_root=project_root,
-            force_copy=args.force_copy
-        )
-
-        if flet_result["ready"]:
-            status = "已重新下载" if args.force_copy or flet_result["copied"] else "已存在"
-            print(f"   [OK] Flet{status} ({flet_result['size_mb']:.2f} MB)")
-        else:
-            print("   [ERROR] Flet准备失败")
-            return 1
-
-        print("\n" + "=" * 60)
-        print("[OK] 所有依赖准备完成！")
-        print(f"[INFO] Playwright浏览器: {browser_result['size_mb']:.2f} MB")
-        print(f"[INFO] Flet可执行文件: {flet_result['size_mb']:.2f} MB")
-        print(f"[INFO] 总计: {browser_result['size_mb'] + flet_result['size_mb']:.2f} MB")
-        print("=" * 60)
-        return 0
-
-    # 正常打包流程
-    if args.mode == 'both':
-        print("[INFO] 打包模式: 两个版本（onedir + onefile）")
-
-        # 检查是否使用 UPX
-        use_upx = args.upx and not args.no_upx
-
-        # 获取平台信息用于显示
-        platform_info = get_platform_info()
-        import version
-        onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
-        onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
-        if platform_info["platform"] == "windows":
-            onefile_name += ".exe"
-
-        print("\n" + "=" * 60)
-        print("开始编译: 目录模式（推荐）")
-        print("=" * 60)
-        build_project(mode="onedir", use_upx=use_upx)
-
-        print("\n\n" + "=" * 60)
-        print("开始编译: 单文件模式")
-        print("=" * 60)
-        build_project(mode="onefile", use_upx=use_upx)
-
-        print("\n\n" + "=" * 60)
-        print("[SUCCESS] 两个版本编译完成！")
-        print("=" * 60)
-        print(f"目录模式: dist/{onedir_name}/")
-        print(f"单文件模式: dist/{onefile_name}")
-        print("=" * 60)
-    else:
-        print(f"[INFO] 打包模式: {args.mode}")
-        use_upx = args.upx and not args.no_upx
-        build_project(mode=args.mode, use_upx=use_upx)
+    print(f"[INFO] 打包模式: {args.mode}")
+    
+    # 构建项目
+    build_project(mode=args.mode)
 
 
 if __name__ == "__main__":
