@@ -1,9 +1,9 @@
 {
   "title": "⚠️ 重要警告",
   "content": "这是一条重要的警告信息！\n\n请注意仔细阅读相关内容。",
-  "window_size": "xlarge",
-  "window_width": 800,
-  "window_height": 500,
+  "window_size": "large",
+  "window_width": 700,
+  "window_height": 450,
   "warning_level": "warning",
   "bgcolor": "red",
   "title_color": "red_800",
@@ -22,7 +22,5 @@
   "window_opacity": 1.0,
   "always_on_top": true,
   "enable_escape": true,
-  "theme_preset": "default",
-  "enable_loop": true,
-  "loop_interval": 1
+  "theme_preset": "default"
 }
